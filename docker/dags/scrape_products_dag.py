@@ -46,7 +46,7 @@ with DAG(
 
     get_aq_task=PythonOperator(
         task_id='get_location_aq',
-        python_callable=get_openweather_api_data
+        python_callable=get_openweather_api_data,
         op_kwargs={"api": "aq"}        
     )
 
