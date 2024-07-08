@@ -1,0 +1,29 @@
+{
+    "db": {
+      "databaseName": "airflow",
+      "dbClusterIdentifier": "aurora-airflow",
+      "engine": "aurora-postgresql",
+      "engineMode": "serverless",
+      "masterUsername": "airflow",
+      "port": 5432,
+      "autoPause": false,
+      "minCapacity": 2, 
+      "maxCapacity": 8,
+      "SecondsUntilAutoPause": 3600,
+      "passwordSecretName": "airflow/postgres/password"
+    },
+    "cloudmap": {
+      "namespace": "airflow",
+      "redisServiceName": "redis",
+      "webserverServiceName": "webserver",
+      "flowerServiceName": "flower"
+    },
+    "redis": {
+      "port": "6379",
+      "passwordSecretName": "airflow/redis/password"
+    },
+    "airflow": {
+      "fernetKeySecretName": "airflow/fernetKey",
+      "loadExamples": "n"
+    }
+}  
