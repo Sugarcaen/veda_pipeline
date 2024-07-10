@@ -349,31 +349,33 @@ class VedaStack(Stack):
         green_coffee_products_table = dynamodb.TableV2(self, "GreenCoffeeProduct", 
             table_name="GreenCoffeeProduct",                                        
             partition_key=dynamodb.Attribute(name="id", type=dynamodb.AttributeType.STRING),
-            sort_key=dynamodb.Attribute(name="has_been_purchased", type=dynamodb.AttributeType.NUMBER),
-            local_secondary_indexes=[dynamodb.LocalSecondaryIndexProps(
-                    index_name="geocoded",
-                    sort_key=dynamodb.Attribute(name="has_been_purchased", type=dynamodb.AttributeType.NUMBER)
-                )
-            ],
             removal_policy=remove.DESTROY,
         )
 
-        #Ecommerce side (normalized products)
-        aurora = rds.CfnDBCluster(self, 'CoffeeEcomDB',
-            database_name=ecommerce_config["databaseName"],
-            db_cluster_identifier=ecommerce_config["dbClusterIdentifier"],
-            engine=ecommerce_config["engine"],
-            engine_mode=ecommerce_config["engineMode"],
-            master_username=ecommerce_config["masterUsername"],
-            master_user_password=db_password_secret.secret_value.unsafe_unwrap(),
-            port=ecommerce_config["port"],
-            db_subnet_group_name=db_subnet_group.subnet_group_name,
-            vpc_security_group_ids=[ecs_task_sg.security_group_id],
-            serverless_v2_scaling_configuration=rds.CfnDBCluster.ServerlessV2ScalingConfigurationProperty(
-                max_capacity=ecommerce_config["maxCapacity"],
-                min_capacity=ecommerce_config["minCapacity"]
-            ),
+        #Past this is Data Pipelining Stuff. This should probably be a separate stack
+        ecom_coffee_products_table = dynamodb.TableV2(self, "EcommCoffeeProduct", 
+            table_name="RoastedCoffeeProduct",                                        
+            partition_key=dynamodb.Attribute(name="id", type=dynamodb.AttributeType.STRING),
+            removal_policy=remove.DESTROY,
+            removal_policy=remove.DESTROY,
         )
+
+        #Ecommerce side (normalized products) Dynamo is better for demonstration
+        # aurora = rds.CfnDBCluster(self, 'CoffeeEcomDB',
+        #     database_name=ecommerce_config["databaseName"],
+        #     db_cluster_identifier=ecommerce_config["dbClusterIdentifier"],
+        #     engine=ecommerce_config["engine"],
+        #     engine_mode=ecommerce_config["engineMode"],
+        #     master_username=ecommerce_config["masterUsername"],
+        #     master_user_password=db_password_secret.secret_value.unsafe_unwrap(),
+        #     port=ecommerce_config["port"],
+        #     db_subnet_group_name=db_subnet_group.subnet_group_name,
+        #     vpc_security_group_ids=[ecs_task_sg.security_group_id],
+        #     serverless_v2_scaling_configuration=rds.CfnDBCluster.ServerlessV2ScalingConfigurationProperty(
+        #         max_capacity=ecommerce_config["maxCapacity"],
+        #         min_capacity=ecommerce_config["minCapacity"]
+        #     ),
+        # )
 
 
 
