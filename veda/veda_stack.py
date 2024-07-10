@@ -11,6 +11,7 @@ from aws_cdk import (
     aws_servicediscovery as cloudmap,
     aws_secretsmanager as sm,
     aws_elasticache as elasticache,
+    aws_dynamodb as dynamodb,
     SecretValue,
     RemovalPolicy as remove,
     Duration
@@ -35,16 +36,18 @@ class VedaStack(Stack):
         super().__init__(scope, construct_id, **kwargs)
 
         #configs
-        dbconfig = config["db"]
+        db_config = config["db"]
         redis_config = config["redis"]
         cloudmap_config = config["cloudmap"]
         airflow_config = config["airflow"]
+        ecommerce_config = config["ecommerce"]
+        other_config = config["other"]
 
         #Passwords (the bad way) TODO:Remove plaintext, handle Fernet Better
         #https://docs.aws.amazon.com/cdk/api/v2/docs/aws-cdk-lib.aws_secretsmanager-readme.html gives many reasons why not to do this.
         db_password_secret = sm.Secret(self, "AirflowDBPassword",
             removal_policy=remove.DESTROY,
-            secret_name=dbconfig["passwordSecretName"],
+            secret_name=db_config["passwordSecretName"],
             secret_string_value=SecretValue.unsafe_plain_text(os.getenv("DB_PASSWORD"))
         )
 
@@ -54,12 +57,25 @@ class VedaStack(Stack):
             secret_string_value=SecretValue.unsafe_plain_text(os.getenv("REDIS_PASSWORD"))
         )
 
+        db_password_secret = sm.Secret(self, "EcomDBPassword",
+            removal_policy=remove.DESTROY,
+            secret_name=ecommerce_config["passwordSecretName"],
+            secret_string_value=SecretValue.unsafe_plain_text(os.getenv("ECOM_DB_PASSWORD"))
+        )
+
+        open_weather_api_key_secret = sm.Secret(self, "OWAPIKey",
+            removal_policy=remove.DESTROY,
+            secret_name=other_config["api_key_path"],
+            secret_string_value=SecretValue.unsafe_plain_text(os.getenv("OW_API_KEY"))
+        )
+
         '''
-        We're generating a key here, and storing it, which means a new key gets generated every run, which isn't great
+        We're generating a key here, and storing it, which probably isn't a great implementation
         A better long term solution would probably be a dedicated lamda for creation/rotation
         Or realistically do some manual preprovisioning (though that can lead to other future issues.)
         '''
         fernet_key = Fernet.generate_key().decode()
+
         fernet_key_secret = sm.Secret(self, "FernetKey",
             removal_policy=remove.DESTROY,
             secret_name=airflow_config["fernetKeySecretName"],
@@ -120,18 +136,18 @@ class VedaStack(Stack):
 
         #Airflow DB (Postgres Serverless)
         aurora = rds.CfnDBCluster(self, 'AuroraAirflow',
-            database_name=dbconfig["databaseName"],
-            db_cluster_identifier=dbconfig["dbClusterIdentifier"],
-            engine=dbconfig["engine"],
-            engine_mode=dbconfig["engineMode"],
-            master_username=dbconfig["masterUsername"],
+            database_name=db_config["databaseName"],
+            db_cluster_identifier=db_config["dbClusterIdentifier"],
+            engine=db_config["engine"],
+            engine_mode=db_config["engineMode"],
+            master_username=db_config["masterUsername"],
             master_user_password=db_password_secret.secret_value.unsafe_unwrap(),
-            port=dbconfig["port"],
+            port=db_config["port"],
             db_subnet_group_name=db_subnet_group.subnet_group_name,
             vpc_security_group_ids=[ecs_task_sg.security_group_id],
             serverless_v2_scaling_configuration=rds.CfnDBCluster.ServerlessV2ScalingConfigurationProperty(
-                max_capacity=2,
-                min_capacity=0.5
+                max_capacity=db_config["maxCapacity"],
+                min_capacity=db_config["minCapacity"]
             ),
         )
 
@@ -172,10 +188,10 @@ class VedaStack(Stack):
             logging=ecs.AwsLogDriver(stream_prefix="airflow-webserver", log_retention=logs.RetentionDays.ONE_DAY),
             environment={
                 "LOAD_EX": airflow_config["loadExamples"],
-                "POSTGRES_DB": dbconfig["databaseName"],
+                "POSTGRES_DB": db_config["databaseName"],
                 "POSTGRES_HOST": aurora.attr_endpoint_address,
                 "POSTGRES_PORT": aurora.attr_endpoint_port,
-                "POSTGRES_USER": dbconfig["masterUsername"],
+                "POSTGRES_USER": db_config["masterUsername"],
                 "AIRFLOW__CORE__REMOTE_BASE_LOG_FOLDER": s3_log_path,
                 "REDIS_HOST": redis_cluster.attr_redis_endpoint_address,
                 "REDIS_PORT": redis_config["port"]
@@ -218,10 +234,10 @@ class VedaStack(Stack):
             logging=ecs.AwsLogDriver(stream_prefix="airflow-scheduler", log_retention=logs.RetentionDays.ONE_DAY),
             environment={
                 "LOAD_EX": airflow_config["loadExamples"],
-                "POSTGRES_DB": dbconfig["databaseName"],
+                "POSTGRES_DB": db_config["databaseName"],
                 "POSTGRES_HOST": aurora.attr_endpoint_address,
                 "POSTGRES_PORT": aurora.attr_endpoint_port,
-                "POSTGRES_USER": dbconfig["masterUsername"],
+                "POSTGRES_USER": db_config["masterUsername"],
                 "AIRFLOW__CORE__REMOTE_BASE_LOG_FOLDER": s3_log_path,
                 "REDIS_HOST": redis_cluster.attr_redis_endpoint_address,
                 "REDIS_PORT": redis_config["port"]
@@ -257,10 +273,10 @@ class VedaStack(Stack):
             logging=ecs.AwsLogDriver(stream_prefix="airflow-flower", log_retention=logs.RetentionDays.ONE_DAY),
             environment={
                 "LOAD_EX": airflow_config["loadExamples"],
-                "POSTGRES_DB": dbconfig["databaseName"],
+                "POSTGRES_DB": db_config["databaseName"],
                 "POSTGRES_HOST": aurora.attr_endpoint_address,
                 "POSTGRES_PORT": aurora.attr_endpoint_port,
-                "POSTGRES_USER": dbconfig["masterUsername"],
+                "POSTGRES_USER": db_config["masterUsername"],
                 "AIRFLOW__CORE__REMOTE_BASE_LOG_FOLDER": s3_log_path,
                 "REDIS_HOST": redis_cluster.attr_redis_endpoint_address,
                 "REDIS_PORT": redis_config["port"]
@@ -304,10 +320,10 @@ class VedaStack(Stack):
             #TODO: As I type this the third time, I should probably just use a separate .env file
             environment={
                 "LOAD_EX": airflow_config["loadExamples"],
-                "POSTGRES_DB": dbconfig["databaseName"],
+                "POSTGRES_DB": db_config["databaseName"],
                 "POSTGRES_HOST": aurora.attr_endpoint_address,
                 "POSTGRES_PORT": aurora.attr_endpoint_port,
-                "POSTGRES_USER": dbconfig["masterUsername"],
+                "POSTGRES_USER": db_config["masterUsername"],
                 "AIRFLOW__CORE__REMOTE_BASE_LOG_FOLDER": s3_log_path,
                 "REDIS_HOST": redis_cluster.attr_redis_endpoint_address,
                 "REDIS_PORT": redis_config["port"]
@@ -328,6 +344,37 @@ class VedaStack(Stack):
             security_groups=[ecs_task_sg],
             assign_public_ip=False
         )
+
+        #Past this is Data Pipelining Stuff. This should probably be a separate stack
+        green_coffee_products_table = dynamodb.TableV2(self, "GreenCoffeeProduct", 
+            table_name="GreenCoffeeProduct",                                        
+            partition_key=dynamodb.Attribute(name="id", type=dynamodb.AttributeType.STRING),
+            sort_key=dynamodb.Attribute(name="has_been_purchased", type=dynamodb.AttributeType.NUMBER),
+            local_secondary_indexes=[dynamodb.LocalSecondaryIndexProps(
+                    index_name="geocoded",
+                    sort_key=dynamodb.Attribute(name="has_been_purchased", type=dynamodb.AttributeType.NUMBER)
+                )
+            ],
+            removal_policy=remove.DESTROY,
+        )
+
+        #Ecommerce side (normalized products)
+        aurora = rds.CfnDBCluster(self, 'CoffeeEcomDB',
+            database_name=ecommerce_config["databaseName"],
+            db_cluster_identifier=ecommerce_config["dbClusterIdentifier"],
+            engine=ecommerce_config["engine"],
+            engine_mode=ecommerce_config["engineMode"],
+            master_username=ecommerce_config["masterUsername"],
+            master_user_password=db_password_secret.secret_value.unsafe_unwrap(),
+            port=ecommerce_config["port"],
+            db_subnet_group_name=db_subnet_group.subnet_group_name,
+            vpc_security_group_ids=[ecs_task_sg.security_group_id],
+            serverless_v2_scaling_configuration=rds.CfnDBCluster.ServerlessV2ScalingConfigurationProperty(
+                max_capacity=ecommerce_config["maxCapacity"],
+                min_capacity=ecommerce_config["minCapacity"]
+            ),
+        )
+
 
 
 

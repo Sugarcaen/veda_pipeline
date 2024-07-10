@@ -1,7 +1,7 @@
 from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from coffee_products import scrape_sm_products, normalize_products
+from coffee_products import scrape_sm_products, normalize_products_for_ecom
 from openweather_api import get_openweather_api_data
 from db_utils import push_products_to_graph
 
@@ -36,7 +36,7 @@ with DAG(
 
     normalize_task=PythonOperator(
         task_id='normalize_coffee_products',
-        python_callable=normalize_products
+        python_callable=normalize_products_for_ecom
     )
 
     get_weather_task=PythonOperator(

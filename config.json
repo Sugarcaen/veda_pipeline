@@ -6,9 +6,9 @@
       "engineMode": "serverless",
       "masterUsername": "airflow",
       "port": 5432,
-      "autoPause": false,
-      "minCapacity": 2, 
-      "maxCapacity": 8,
+      "autoPause": true,
+      "minCapacity": 0.5, 
+      "maxCapacity": 2,
       "SecondsUntilAutoPause": 3600,
       "passwordSecretName": "airflow/postgres/password"
     },
@@ -25,5 +25,21 @@
     "airflow": {
       "fernetKeySecretName": "airflow/fernetKey",
       "loadExamples": "n"
+    },
+    "ecommerce": {
+      "databaseName": "sleeping_dragon",
+      "dbClusterIdentifier": "sleeping_dragon",
+      "engine": "aurora-postgresql",
+      "engineMode": "serverless",
+      "masterUsername": "dungeon_master",
+      "port": 5432,
+      "autoPause": false,
+      "minCapacity": 2, 
+      "maxCapacity": 8,
+      "SecondsUntilAutoPause": 3600,
+      "passwordSecretName": "ecommerce/postgres/password"
+    },
+    "other": {
+      "api_key_path": "/openweather_api/api_key"
     }
 }  

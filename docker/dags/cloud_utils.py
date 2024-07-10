@@ -1,0 +1,1 @@
+S3_DIR = "s3://kcypher-veda-airflow-bucket/ingest"
