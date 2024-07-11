@@ -40,22 +40,24 @@ with DAG(
     )
 
     ingest_transactions_task=PythonOperator(
-        task_id='ingest_transactions',
+        task_id='ingest_redshift_transactions',
         op_kwargs={"table": "transactions", "s3_path":TRANSACTIONS_PATH},
         python_callable=ingest_redshift_data
     )
 
     push_purchases_task=PythonOperator(
-        task_id='ingest_transactions',
+        task_id='push_purchases_to_graph',
         op_kwargs={"table": "transactions", "s3_path":TRANSACTIONS_PATH},
         python_callable=push_purchases_to_graph
     )
 
     push_roasts_task=PythonOperator(
-        task_id='ingest_transactions',
+        task_id='push_roast_to_graphs',
         op_kwargs={"table": "transactions", "s3_path":TRANSACTIONS_PATH},
         python_callable=push_roasting_profile_to_graph
     )
 
-    generate_data_task >> [ingest_users_task, ingest_retail_products_task, ingest_transactions_task] >> [push_purchases_task, push_purchases_task]
+    generate_data_task >> [ingest_users_task, ingest_retail_products_task, ingest_transactions_task] >> push_purchases_task >> push_roasts_task
+
+
 

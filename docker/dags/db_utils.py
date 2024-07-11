@@ -1,8 +1,8 @@
-import json
+from decimal import Decimal
+import simplejson as json
 import logging
 import time
 from typing import Iterator
-from sqlalchemy import create_engine
 
 import boto3
 from boto3.dynamodb.conditions import Attr
@@ -24,8 +24,23 @@ def put_items_in_dynamo(table_name:str, items:Iterator)->None:
     except dynamodb.meta.client.exceptions.ResourceNotFoundException:
         logging.warn(f"Table {table_name} Not Found")
     except Exception as err:
-        logging.fatal(f"Unexpected {err=}, {type(err)=}")        
-    
+        logging.fatal(f"Error updating {item}")
+        logging.fatal(f"Unexpected {err=}, {type(err)=}")    
+
+def put_item_in_dynamo(table_name:str, item)->None:
+    logging.info(f"writing single items to dynamodb table {table_name}")
+    dynamodb = boto3.resource('dynamodb')  
+    try:
+        #Check if the table exists, and make sure the item we're loading is using Decimal instead of float because DYnamo   
+        item = json.loads(json.dumps(item), parse_float=Decimal)   
+        table = dynamodb.Table(table_name)
+        table.put_item(Item=item)
+    except dynamodb.meta.client.exceptions.ResourceNotFoundException:
+        logging.warn(f"Table {table_name} Not Found")
+    except Exception as err:
+        logging.fatal(f"Error updating {item}")
+        logging.fatal(f"Unexpected {err=}, {type(err)=}")   
+
 def ingest_redshift_data(table:str, s3_path:str)->None:
 
     #Ingest S3 data into redshift directly
@@ -96,8 +111,8 @@ def update_product_to_purchased(id:str):
             ReturnValues="UPDATED_NEW",
         )
     except Exception as err:
+        logging.fatal(f"Error updating {id}")
         logging.error(f"Unexpected {err=}, {type(err)=}")      
-
 
 def get_new_products():
     dynamodb = boto3.resource('dynamodb')
@@ -106,6 +121,15 @@ def get_new_products():
         items = table.scan(
             FilterExpression=Attr('has_been_purchased').eq(0)
         )
+        return items["Items"]
+    except Exception as e:
+        logging.error(e)
+
+def get_roasted_products():
+    dynamodb = boto3.resource('dynamodb')
+    table = dynamodb.Table('RoastedCoffeeProduct')
+    try:
+        items = table.scan()
         return items["Items"]
     except Exception as e:
         logging.error(e)

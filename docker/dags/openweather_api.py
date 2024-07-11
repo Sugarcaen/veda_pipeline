@@ -3,7 +3,7 @@ import logging
 import requests
 import botocore 
 import botocore.session
-import json
+import simplejson as json
 from db_utils import get_new_products
 from aws_secretsmanager_caching import SecretCache, SecretCacheConfig 
 
@@ -17,32 +17,39 @@ geocoding_url = "http://api.openweathermap.org/geo/1.0/direct"
 aq_url = "http://api.openweathermap.org/data/2.5/air_pollution"
 math_url = "https://api.mathjs.org/v4/"
 
-def get_openweather_api_data(api="weather"):
+def get_openweather_api_data(product, api="weather"):
     api_url = weather_url
     match api:
-        #SHould probably make these constants
         case "aq":
             api_url = aq_url
-    for product in get_new_products():
-        if product["farm"]["location"] is None:
-            lat, lng = geocode_name(product["region"])       
-            params = {
-                'lat': lat,
-                'lon': lng,
-                'appid': api_key,
-            }
-        else:         
-            params = {
-                'lat': product["farm"]["location"]["lat"],
-                'lon': product["farm"]["location"]["lng"],
-                'appid': api_key,
-            }
-        response = requests.get(api_url, params=params)
-        if response.status_code == 200:
-            response.json()
-        else:
-            # Handle errors
-            pass
+    if product["farm"]["location"] is None:
+        lat, lng = geocode_name(product["region"])       
+        params = {
+            'lat': lat,
+            'lon': lng,
+            'appid': api_key,
+        }
+    else:         
+        params = {
+            'lat': product["farm"]["location"]["lat"],
+            'lon': product["farm"]["location"]["lng"],
+            'units': "metric",
+            'appid': api_key,
+        }
+    response = requests.get(api_url, params=params)
+    if response.status_code == 200:
+        return extract_response(api=api, response=response)
+    else:
+        # Handle errors
+        pass
+
+def extract_response(response, api="weather"):
+    body = response.json()
+    match api:
+        case "weather":
+            return body["main"]
+        case "aq":
+            return body["list"][0] 
 
 def geocode_name(location: str):
     lat = "38.907"

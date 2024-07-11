@@ -1,9 +1,7 @@
 from datetime import datetime
 from airflow import DAG
 from airflow.operators.python import PythonOperator
-from coffee_products import scrape_sm_products, normalize_products_for_ecom
-from openweather_api import get_openweather_api_data
-from db_utils import push_products_to_graph
+from coffee_products import scrape_sm_products, normalize_products_for_ecom, update_with_roasted_product
 
 
 default_args = {
@@ -39,20 +37,9 @@ with DAG(
         python_callable=normalize_products_for_ecom
     )
 
-    get_weather_task=PythonOperator(
-        task_id='get_location_weather',
-        python_callable=get_openweather_api_data
-    )
-
-    get_aq_task=PythonOperator(
-        task_id='get_location_aq',
-        python_callable=get_openweather_api_data,
-        op_kwargs={"api": "aq"}        
-    )
-
-    push_new_products_to_graph=PythonOperator(
+    push_new_roasted_products=PythonOperator(
         task_id='update_graph_with_products',
-        python_callable=push_products_to_graph
+        python_callable=update_with_roasted_product
     )
 
-    [dark_task, light_task, espresso_task] >> normalize_task >> [get_weather_task, get_weather_task] >> push_new_products_to_graph
+    [dark_task, light_task, espresso_task] >> normalize_task >> push_new_roasted_products

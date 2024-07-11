@@ -1,7 +1,8 @@
+from decimal import Decimal
 from io import StringIO
 from typing import List
 import concurrent.futures
-import json
+import simplejson as json
 import pandas as pd
 import logging
 
@@ -15,8 +16,8 @@ from webdriver_manager.chrome import ChromeDriverManager
 from names_generator import generate_name
 
 from data_utils import clean_keys
-from db_utils import get_new_products, put_items_in_dynamo, update_product_to_purchased
-from openweather_api import get_roasted_price
+from db_utils import get_new_products, put_item_in_dynamo, put_items_in_dynamo, update_product_to_purchased
+from openweather_api import get_openweather_api_data, get_roasted_price
 from models.ecom_products import RoastedCoffee
 from models.green_coffee import GreenCoffeeProduct, Farm, FlavorWheel, Score
 
@@ -165,10 +166,16 @@ def parse_ecom_product(product)-> RoastedCoffee:
 
 def normalize_products_for_ecom():
     new_products = get_new_products()
+    for product in new_products:
+        product["weather"] = get_openweather_api_data(api="weather", product=product)
+        product["aq"] = get_openweather_api_data(api="aq", product=product)
+        put_item_in_dynamo("GreenCoffeeProduct", product)
+
+def update_with_roasted_product():
+    new_products = get_new_products()
     ecom_products = []
-    count = 0
     for product in new_products:
         ecom_products.append(parse_ecom_product(product).to_dynamo())
+        put_items_in_dynamo("RoastedCoffeeProduct", ecom_products)
         update_product_to_purchased(product["id"])
-    put_items_in_dynamo("RoastedCoffeeProduct", ecom_products)
 
